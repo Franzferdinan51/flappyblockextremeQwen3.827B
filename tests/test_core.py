@@ -5,6 +5,7 @@ cover physics, pipe spawning, collision, scoring, the state machine and
 high-score persistence.
 """
 
+import json
 import os
 import random
 import sys
@@ -324,6 +325,22 @@ class TestHighScore(unittest.TestCase):
                 fh.write("not valid json {")
             store = K.HighScoreStore(path)
             self.assertEqual(store.value, 0)
+
+    def test_file_created_on_first_launch(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "hs.json")
+            K.HighScoreStore(path)               # file does not exist yet
+            self.assertTrue(os.path.exists(path))
+            with open(path, "r", encoding="utf-8") as fh:
+                self.assertEqual(json.load(fh), {"high_score": 0})
+
+    def test_existing_file_is_not_clobbered_on_load(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "hs.json")
+            K.HighScoreStore(path).submit(7)
+            K.HighScoreStore(path)               # re-open must keep the record
+            reloaded = K.HighScoreStore(path)
+            self.assertEqual(reloaded.value, 7)
 
     def test_highscore_updates_on_death(self):
         core = K.GameCore()

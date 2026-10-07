@@ -156,6 +156,10 @@ class Game:
             return
         prev = self.core.state
         self.core.handle_action(action)
+        # A flap only "happens" in states where the core actually flaps the
+        # bird (menu/ready/playing); FLAP from game-over is a no-op there.
+        if action == K.Action.FLAP and self.core.state in (K.State.READY, K.State.PLAYING):
+            self.sounds.play("flap")
         self._on_state_change(prev, self.core.state)
 
     def _on_state_change(self, prev: K.State, now: K.State) -> None:
@@ -196,8 +200,11 @@ class Game:
         self.accumulator += dt
         self.accumulator = min(self.accumulator, 0.25)  # no spiral of death
         while self.accumulator >= C.FIXED_DT:
+            before = self.core.score
             self.core.step(C.FIXED_DT)
             self.accumulator -= C.FIXED_DT
+            if self.core.score > before:
+                self.sounds.play("score")
         # The wing animation is a live-world clock; keep it frozen on pause
         # and death so a dead/paused bird holds its last pose.
         if self.core.state in (K.State.MENU, K.State.READY, K.State.PLAYING):

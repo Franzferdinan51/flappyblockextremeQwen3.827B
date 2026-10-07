@@ -151,6 +151,74 @@ class TestPresentationFreeze(unittest.TestCase):
         self.assertEqual(game.assets.ground.offset, before)
 
 
+class _SoundSpy:
+    """Records play() calls at the audio-device boundary; delegates the rest
+    to the real (headless no-op) SoundBank."""
+
+    def __init__(self, real) -> None:
+        self._real = real
+        self.calls = []
+
+    def play(self, name: str) -> None:
+        self.calls.append(name)
+        self._real.play(name)
+
+    def set_mute(self, mute: bool) -> None:
+        self._real.set_mute(mute)
+
+    def get_mute(self) -> bool:
+        return self._real.get_mute()
+
+
+def _spy(game) -> _SoundSpy:
+    spy = _SoundSpy(game.sounds)
+    game.sounds = spy
+    return spy
+
+
+class TestGameSounds(unittest.TestCase):
+    def test_flap_action_plays_flap_sound(self):
+        game = _make_game()
+        spy = _spy(game)
+        game._apply(K.Action.FLAP)               # menu -> ready, bird flaps
+        self.assertIn("flap", spy.calls)
+        game._apply(K.Action.FLAP)               # ready -> playing, flaps again
+        self.assertEqual(spy.calls.count("flap"), 2)
+
+    def test_game_over_flap_is_silent(self):
+        game = _make_game()
+        spy = _spy(game)
+        game.core.state = K.State.GAME_OVER
+        game._apply(K.Action.FLAP)               # ignored by the core
+        self.assertNotIn("flap", spy.calls)
+
+    def test_pipe_passed_plays_score_sound(self):
+        game = _make_game()
+        spy = _spy(game)
+        game.core.state = K.State.PLAYING
+        # Pipe just scrolled behind the bird, gap centred on it: one pass,
+        # no collision.
+        game.core.pipes = [K.PipePair(140.0, C.HEIGHT / 2)]
+        game.core.bird.y = C.HEIGHT / 2
+        game.core.bird.vy = 0.0
+        self.assertEqual(game.core.score, 0)
+        game._physics(C.FIXED_DT)
+        self.assertEqual(game.core.score, 1)
+        self.assertIn("score", spy.calls)
+
+    def test_no_score_sound_without_progress(self):
+        game = _make_game()
+        spy = _spy(game)
+        game.core.state = K.State.PLAYING
+        game.core.pipes = [K.PipePair(140.0, C.HEIGHT / 2)]
+        game.core.bird.y = C.HEIGHT / 2
+        game.core.bird.vy = 0.0
+        game._physics(C.FIXED_DT)                # the one pass (plays score)
+        first = len(spy.calls)
+        game._physics(C.FIXED_DT)                # nothing new
+        self.assertEqual(len(spy.calls), first)
+
+
 class TestSmokeRun(unittest.TestCase):
     def test_smoke_produces_a_full_painted_capture(self):
         path = os.path.join(tempfile.gettempdir(), "flippyblock_smoke_test.png")

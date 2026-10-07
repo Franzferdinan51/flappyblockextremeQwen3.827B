@@ -172,6 +172,10 @@ class HighScoreStore:
         self.value = int(initial)
         if path is not None:
             self.value = self._load()
+            if not os.path.exists(path):
+                # First launch: create the record file so the persisted score
+                # exists from the start (a 0-score run still leaves a file).
+                self._save()
 
     def _load(self) -> int:
         try:

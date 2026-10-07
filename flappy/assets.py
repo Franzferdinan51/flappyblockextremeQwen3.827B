@@ -189,8 +189,10 @@ class PipeSprite:
         surf = self._body_cache.get(key)
         if surf is None:
             surf = pygame.transform.scale(self._body_strip, (self.width, max(2, key)))
-            if len(self._body_cache) > 512:
-                self._body_cache.clear()
+            if len(self._body_cache) >= 512:
+                # Evict the single oldest entry; a full clear() would free
+                # hundreds of surfaces in one burst and spike memory usage.
+                self._body_cache.pop(next(iter(self._body_cache)))
             self._body_cache[key] = surf
         return surf
 
